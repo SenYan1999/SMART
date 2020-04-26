@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from logging import handlers
 from transformers import BertTokenizer
 from transformers.data.processors.glue import ColaProcessor, Sst2Processor, MnliProcessor, MrpcProcessor, QnliProcessor, \
-    QqpProcessor, WnliProcessor
+    QqpProcessor, WnliProcessor, RteProcessor
 from transformers.data.processors.glue import glue_convert_examples_to_features
 
 def init_logger(filename, when='D', backCount=3,
@@ -33,26 +33,27 @@ class GlueDataset(Dataset):
 
     def _get_data(self, data_dir, mode):
         # define processors
-        processors = {'cola': ColaProcessor,
-                      'sst2': Sst2Processor,
-                      'mnli': MnliProcessor,
-                      'mrpc': MrpcProcessor,
-                      'qnli': QnliProcessor,
-                      'qqp': QqpProcessor,
-                      'wnli': WnliProcessor}
+        processors = {'CoLA': ColaProcessor,
+                      'SST-2': Sst2Processor,
+                      'MNLI': MnliProcessor,
+                      'MRPC': MrpcProcessor,
+                      'QNLI': QnliProcessor,
+                      'QQP': QqpProcessor,
+                      'RTE': RteProcessor,
+                      'STS-B': WnliProcessor}
 
         # get InputExamples from raw file
-        p = processors[self.task.lower()]()
+        p = processors[self.task]()
         if mode == 'train':
-            input_examples = p.get_train_examples(data_dir=os.path.join(data_dir, self.task.lower()))
+            input_examples = p.get_train_examples(data_dir=os.path.join(data_dir, self.task))
         elif mode == 'dev':
-            input_examples = p.get_dev_examples(data_dir=os.path.join(data_dir, self.task.lower()))
+            input_examples = p.get_dev_examples(data_dir=os.path.join(data_dir, self.task))
         else:
             raise Exception('mode must be in ["train", "dev"]...')
 
         # get InputFeatures from InputExamples
         input_features = glue_convert_examples_to_features(input_examples, tokenizer=self.tokenizer, \
-                                                           max_length=self.max_len, task=self.task)
+                                                           max_length=self.max_len, task=self.task.lower())
 
         # convert InputFeatures to tensor
         input_ids, attention_mask, token_type_ids, labels = [], [], [], []

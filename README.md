@@ -9,10 +9,10 @@ A pytorch implementation of [SMART](https://arxiv.org/abs/1911.03437).
 - sklearn
 
 ## Performence
-Model | CoLA(MCC)
----- | :---:
-BERT-Base | 57.0
-SMART-Base |  58.7
+Model | CoLA(MCC) | QNLI(ACC) | SST-2(ACC) 
+---- | :---: | :---: | :---: 
+BERT-Base | 57.0 | 91.1 | 93.2
+SMART-Base |  58.7 | 91.4 | 93.0
 
 ## Usage
 Download and prepare data.(To be implemented, download GLUE to glue_data/)

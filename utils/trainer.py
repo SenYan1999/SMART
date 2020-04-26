@@ -4,10 +4,10 @@ import numpy as np
 import os
 
 from tqdm import tqdm
-from sklearn.metrics import matthews_corrcoef
+from sklearn.metrics import matthews_corrcoef, accuracy_score
 
 class Trainer:
-    def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, task, logger, normal):
+    def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, task, logger, normal, distributed):
         self.train_data = train_dataloader
         self.dev_data = dev_dataloader
         self.model = model
@@ -23,7 +23,12 @@ class Trainer:
         self.logger = logger
         self.normal = normal
 
-        self.metrics = {'cola': 'MCC'}
+        if distributed:
+            self.logger.info('Lets use %d GPUs!' % torch.cuda.device_count())
+            self.model = torch.nn.DataParallel(self.model)
+
+        self.metrics = {'CoLA': 'MCC', 'QNLI': 'ACC', 'SST-2': 'ACC', 'MNLI': 'ACC', 'WNLI': 'ACC', 'QQP': 'acc',\
+                        'MRPC': 'ACC', 'RTE': 'ACC'}
 
     def calculate_result(self, pred, truth):
         pred = torch.argmax(pred, dim=-1).detach().cpu().numpy().astype(np.float)
@@ -31,7 +36,8 @@ class Trainer:
 
         if self.task == 'cola':
             result = matthews_corrcoef(truth, pred)
-
+        elif self.task in ['QNLI', 'SST-2', 'WNLI', 'QQP', 'MNLI', 'MRPC', 'RTE']:
+            result = accuracy_score(truth, pred)
         else:
             raise('Task error!')
 

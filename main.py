@@ -6,7 +6,7 @@ from utils import Trainer, GlueDataset, init_logger
 from model import Bert, PGD, BPP
 from torch.utils.data import DataLoader
 
-def preprocess():
+def preprocess(logger):
     # get dataset
     train_dataset = GlueDataset(args.data_dir, args.task, args.max_len, args.bert_type, mode='train')
     dev_dataset = GlueDataset(args.data_dir, args.task, args.max_len, args.bert_type, mode='dev')
@@ -19,6 +19,16 @@ def train(logger):
     # prepare dataset and dataloader
     train_dataset = torch.load(os.path.join(args.data_dir, args.task, 'train.pt'))
     dev_dataset = torch.load(os.path.join(args.data_dir, args.task, 'dev.pt'))
+
+    # get mini dataset
+    if args.restrict_dataset:
+        if len(train_dataset) > 100000:
+            logger.info('Train_size: %d' % len(train_dataset))
+            train_size = int(0.1 * len(train_dataset))
+            train_dataset, _ = torch.utils.data.random_split(train_dataset, [train_size, len(train_dataset) - train_size])
+            dev_size = int(0.1 * len(dev_dataset))
+            dev_dataset, _ = torch.utils.data.random_split(dev_dataset, [dev_size, len(dev_dataset) - dev_size])
+
     train_dataloader, eval_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True), \
                                         DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -29,20 +39,18 @@ def train(logger):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     # define trainer and begin training
-    trainer = Trainer(train_dataloader, eval_dataloader, model, pgd, args.K, bpp, optimizer, args.task, logger, args.normal)
+    trainer = Trainer(train_dataloader, eval_dataloader, model, pgd, args.K, bpp, optimizer, args.task, logger, args.normal, args.distributed)
     trainer.train(args.num_epoch, args.save_path)
 
 if __name__ == '__main__':
     if not os.path.exists(args.save_path):
         os.mkdir(args.save_path)
-    if not os.path.exists(args.log_path):
-        os.mkdir(args.log_path)
 
     # define logger file
-    logger = init_logger(os.path.join(args.log_path, 'log.log'))
+    logger = init_logger(args.log_path)
 
     if args.do_prepare:
-        preprocess()
+        preprocess(logger)
 
     if args.do_train:
         train(logger)
