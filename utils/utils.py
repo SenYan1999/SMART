@@ -40,7 +40,7 @@ class GlueDataset(Dataset):
                       'QNLI': QnliProcessor,
                       'QQP': QqpProcessor,
                       'RTE': RteProcessor,
-                      'STS-B': WnliProcessor}
+                      'WNLI': WnliProcessor}
 
         # get InputExamples from raw file
         p = processors[self.task]()
