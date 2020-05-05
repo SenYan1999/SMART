@@ -2,10 +2,14 @@ import torch
 import torch.nn.functional as F
 
 class BPP(object):
-    def __init__(self, model, beta, mu):
-        self.model = model.clone()
+    def __init__(self, model, named_parameters, beta, mu):
+        self.model = model
         self.beta = beta
         self.mu = mu
+
+        for (name_pbb, param_pbb), (name_model, param_model) in zip(self.model.named_parameters(), named_parameters):
+            assert name_pbb == name_model
+            param_pbb.data = param_model.data
 
     def theta_til_backup(self, named_parameters):
         for (name_pbb, param_pbb), (name_model, param_model) in zip(self.model.named_parameters(), named_parameters):
