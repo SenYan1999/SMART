@@ -2,12 +2,15 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import os
+import time
 
 from tqdm import tqdm
 from sklearn.metrics import matthews_corrcoef, accuracy_score
+from apex import amp
 
 class Trainer:
-    def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, task, logger, normal, distributed):
+    def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, task, logger, \
+                 normal, fp16, device, amp=None):
         self.train_data = train_dataloader
         self.dev_data = dev_dataloader
         self.model = model
@@ -16,16 +19,12 @@ class Trainer:
         self.bpp = bpp
         self.optimizer = optimizer
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model.to(self.device)
-
+        self.device = device
         self.task = task
         self.logger = logger
         self.normal = normal
-
-        if distributed:
-            self.logger.info('Lets use %d GPUs!' % torch.cuda.device_count())
-            self.model = torch.nn.DataParallel(self.model)
+        self.fp16 = fp16
+        self.amp = amp
 
         self.metrics = {'CoLA': 'MCC', 'QNLI': 'ACC', 'SST-2': 'ACC', 'MNLI': 'ACC', 'WNLI': 'ACC', 'QQP': 'acc',\
                         'MRPC': 'ACC', 'RTE': 'ACC'}
@@ -34,7 +33,7 @@ class Trainer:
         pred = torch.argmax(pred, dim=-1).detach().cpu().numpy().astype(np.float)
         truth = truth.detach().cpu().numpy().astype(np.float)
 
-        if self.task == 'cola':
+        if self.task == 'CoLA':
             result = matthews_corrcoef(truth, pred)
         elif self.task in ['QNLI', 'SST-2', 'WNLI', 'QQP', 'MNLI', 'MRPC', 'RTE']:
             result = accuracy_score(truth, pred)
@@ -49,13 +48,18 @@ class Trainer:
         self.model.train()
 
         losses, accs = [], []
-        self.bpp.theta_backup()
-        for batch in self.train_data:
+        t0 = time.time()
+        for step, batch in enumerate(self.train_data):
+            self.optimizer.zero_grad()
             input_ids, attention_mask, token_type_ids, labels = map(lambda i: i.to(self.device), batch)
 
             out = self.model(input_ids, attention_mask, token_type_ids)
-            loss = F.nll_loss(out, labels)
-            loss.backward()
+            loss = F.cross_entropy(out, labels)
+            if self.fp16:
+                with self.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
 
             # PGD Adversarial Training
             self.pgd.grad_backup()
@@ -66,23 +70,40 @@ class Trainer:
                 else:
                     self.pgd.restore_grad()
                 out_adv = self.model(input_ids, attention_mask, token_type_ids)
-                loss_adv = F.nll_loss(out_adv, labels)
-                loss_adv.backward()
+                loss_adv = F.cross_entropy(out_adv, labels)
+
+                if self.fp16:
+                    with self.amp.scale_loss(loss_adv, self.optimizer) as scaled_loss:
+                        scaled_loss.backward()
+                else:
+                    loss_adv.backward()
 
             self.pgd.restore()
 
+            # Bregman Proximal Point Optimization
+            bregman_div = self.bpp.mu * self.bpp.bregman_divergence((input_ids, attention_mask, token_type_ids), out)
+            if self.fp16:
+                with self.amp.scale_loss(bregman_div, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                bregman_div.backward()
+
             self.optimizer.step()
             self.optimizer.zero_grad()
+
+            self.bpp.theta_til_backup(self.model.named_parameters())
 
             losses.append(loss.item())
             acc = self.calculate_result(out, labels)
             accs.append(acc)
 
+            t1 = time.time()
             pbar.set_description('Epoch: %2d | LOSS: %2.3f | %s: %1.3f' % (epoch, np.mean(losses), self.metrics[self.task], np.mean(accs)))
             pbar.update(1)
-
-        # Bregman Proximal Point Optimization
-        self.bpp.theta_update()
+            if step % 20 == 0 and step != 0:
+                total_time = (t1 - t0) / (step / len(self.train_data))
+                self.logger.info('Epoch: %2d | Step: [%4d / %4d] | Time: [%5.3f s / % 5.3f s] | LOSS: %2.3f | %s: %1.3f' % \
+                                 (epoch, step, len(self.train_data), (t1 - t0), total_time, np.mean(losses), self.metrics[self.task], np.mean(accs)))
 
         pbar.close()
         self.logger.info('Epoch: %2d | LOSS: %2.3f %s: %1.3f' % (epoch, np.mean(losses), self.metrics[self.task], np.mean(accs)))
@@ -97,8 +118,12 @@ class Trainer:
             input_ids, attention_mask, token_type_ids, labels = map(lambda i: i.to(self.device), batch)
 
             out = self.model(input_ids, attention_mask, token_type_ids)
-            loss = F.nll_loss(out, labels)
-            loss.backward()
+            loss = F.cross_entropy(out, labels)
+            if self.fp16:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
 
             self.optimizer.step()
             self.optimizer.zero_grad()
@@ -123,7 +148,7 @@ class Trainer:
 
             with torch.no_grad():
                 out = self.model(input_ids, attention_mask, token_type_ids)
-            loss = F.nll_loss(out, labels)
+            loss = F.cross_entropy(out, labels)
 
             acc = self.calculate_result(out, labels)
             losses.append(loss.item())

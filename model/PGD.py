@@ -1,13 +1,14 @@
 import torch
 
 class PGD(object):
-    def __init__(self, model, epsilon, alpha):
+    def __init__(self, model, epsilon, alpha, eta=1e-3):
         super(PGD, self).__init__()
         self.embed_bak = {}
         self.grad_bak = {}
         self.model = model
         self.epsilon = epsilon
         self.alpha = alpha
+        self.eta = eta
 
     def attack(self, emb_name='embeddings.', is_first_attack=False):
         for name, param in self.model.named_parameters():
@@ -24,7 +25,7 @@ class PGD(object):
         r = param_data - self.embed_bak[param_name]
         if torch.norm(r) > self.epsilon:
             r = self.epsilon * r / torch.norm(r)
-        return self.embed_bak[param_name] + r
+        return self.embed_bak[param_name] + self.eta * r
 
     def restore(self, emb_name = 'embeddings.'):
         for name, param in self.model.named_parameters():

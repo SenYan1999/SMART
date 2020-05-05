@@ -4,7 +4,7 @@ import logging
 
 from torch.utils.data import Dataset
 from logging import handlers
-from transformers import BertTokenizer
+from transformers import BertTokenizer, AlbertTokenizer
 from transformers.data.processors.glue import ColaProcessor, Sst2Processor, MnliProcessor, MrpcProcessor, QnliProcessor, \
     QqpProcessor, WnliProcessor, RteProcessor
 from transformers.data.processors.glue import glue_convert_examples_to_features
@@ -24,10 +24,15 @@ def init_logger(filename, when='D', backCount=3,
     return logger
 
 class GlueDataset(Dataset):
-    def __init__(self, data_dir, task, max_len, bert_type, mode='train'):
+    def __init__(self, data_dir, task, max_len, bert_name, bert_type, mode='train'):
         self.task = task
         self.max_len = max_len
-        self.tokenizer = BertTokenizer.from_pretrained(bert_type)
+        if bert_type == 'bert':
+            self.tokenizer = BertTokenizer.from_pretrained(bert_name)
+        elif bert_type == 'albert':
+            self.tokenizer = AlbertTokenizer.from_pretrained(bert_name)
+        else:
+            raise Exception('Please enter the correct bert type.')
 
         self.data, self.num_class = self._get_data(data_dir, mode)
 
