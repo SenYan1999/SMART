@@ -36,6 +36,7 @@ parser.add_argument('--num_epoch', type=int, default=6)
 parser.add_argument('--lr', type=float, default=2e-5)
 parser.add_argument('--distributed', action='store_true')
 parser.add_argument('--drop_out', type=float, default=0.1)
+parser.add_argument('--print_interval', type=int, default=20)
 
 # save & log
 parser.add_argument('--log_path', type=str, default='log/log.log')

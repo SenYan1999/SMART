@@ -70,7 +70,7 @@ def train(logger):
     # define trainer and begin training
     trainer = Trainer(train_dataloader, eval_dataloader, model, pgd, args.K, bpp, optimizer, scheduler, args.task,\
                       logger, args.normal, args.fp16, device)
-    trainer.train(args.num_epoch, args.save_path)
+    trainer.train(args.num_epoch, args.save_path, args.print_interval)
 
 if __name__ == '__main__':
     if not os.path.exists(args.save_path):
