@@ -9,7 +9,7 @@ from sklearn.metrics import matthews_corrcoef, accuracy_score
 from apex import amp
 
 class Trainer:
-    def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, task, logger, \
+    def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, scheduler, task, logger, \
                  normal, fp16, device, amp=None):
         self.train_data = train_dataloader
         self.dev_data = dev_dataloader
@@ -18,6 +18,7 @@ class Trainer:
         self.pgd_k = pgd_k
         self.bpp = bpp
         self.optimizer = optimizer
+        self.scheduler = scheduler
 
         self.device = device
         self.task = task
@@ -87,6 +88,7 @@ class Trainer:
             self.pgd.restore()
 
             self.optimizer.step()
+            self.scheduler.step()
             self.optimizer.zero_grad()
 
             self.bpp.theta_til_backup(self.model.named_parameters())
@@ -124,6 +126,7 @@ class Trainer:
                 loss.backward()
 
             self.optimizer.step()
+            self.scheduler.step()
             self.optimizer.zero_grad()
 
             losses.append(loss.item())

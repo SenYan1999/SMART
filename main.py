@@ -6,6 +6,7 @@ from utils import Trainer, GlueDataset, init_logger
 from apex import amp
 from model import Bert, PGD, BPP
 from torch.utils.data import DataLoader
+from transformers import get_linear_schedule_with_warmup
 
 def preprocess(logger):
     # get dataset
@@ -32,11 +33,14 @@ def train(logger):
 
     # define model and optimzier
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = Bert(args.bert_name, train_dataset.num_class, args.bert_type)
-    model_bpp = Bert(args.bert_name, train_dataset.num_class, args.bert_type)
+    model = Bert(args.bert_name, train_dataset.num_class, args.bert_type, drop_out=args.drop_out)
+    model_bpp = Bert(args.bert_name, train_dataset.num_class, args.bert_type, drop_out=args.drop_out)
     pgd = PGD(model, args.epsilon, args.alpha)
     bpp = BPP(model_bpp, model.named_parameters(), args.beta, args.mu, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    total_step = len(train_dataset) * args.num_epoch
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0,\
+                                                num_training_steps=total_step)
 
     if args.distributed:
         from torch.utils.data.distributed import DistributedSampler
@@ -64,8 +68,8 @@ def train(logger):
         amp_model = None
 
     # define trainer and begin training
-    trainer = Trainer(train_dataloader, eval_dataloader, model, pgd, args.K, bpp, optimizer, args.task, logger, \
-                      args.normal, args.fp16, device, amp_model)
+    trainer = Trainer(train_dataloader, eval_dataloader, model, pgd, args.K, bpp, optimizer, scheduler, args.task,\
+                      logger, args.normal, args.fp16, device, amp_model)
     trainer.train(args.num_epoch, args.save_path)
 
 if __name__ == '__main__':
