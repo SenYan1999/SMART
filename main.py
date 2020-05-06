@@ -63,13 +63,13 @@ def train(logger):
                                             DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=True)
 
     if args.fp16:
-        amp_model = amp.initialize(model, optimizer, opt_level='O1')
+        model, optimizer = amp.initialize(model, optimizer, opt_level='O1')
     else:
-        amp_model = None
+        pass
 
     # define trainer and begin training
     trainer = Trainer(train_dataloader, eval_dataloader, model, pgd, args.K, bpp, optimizer, scheduler, args.task,\
-                      logger, args.normal, args.fp16, device, amp_model)
+                      logger, args.normal, args.fp16, device)
     trainer.train(args.num_epoch, args.save_path)
 
 if __name__ == '__main__':

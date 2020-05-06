@@ -10,7 +10,7 @@ from apex import amp
 
 class Trainer:
     def __init__(self, train_dataloader, dev_dataloader, model, pgd, pgd_k, bpp, optimizer, scheduler, task, logger, \
-                 normal, fp16, device, amp=None):
+                 normal, fp16, device):
         self.train_data = train_dataloader
         self.dev_data = dev_dataloader
         self.model = model
@@ -25,7 +25,6 @@ class Trainer:
         self.logger = logger
         self.normal = normal
         self.fp16 = fp16
-        self.amp = amp
 
         self.metrics = {'CoLA': 'MCC', 'QNLI': 'ACC', 'SST-2': 'ACC', 'MNLI': 'ACC', 'WNLI': 'ACC', 'QQP': 'acc',\
                         'MRPC': 'ACC', 'RTE': 'ACC'}
@@ -63,7 +62,7 @@ class Trainer:
             loss += bregman_div
 
             if self.fp16:
-                with self.amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
             else:
                 loss.backward()
@@ -80,7 +79,7 @@ class Trainer:
                 loss_adv = F.cross_entropy(out_adv, labels)
 
                 if self.fp16:
-                    with self.amp.scale_loss(loss_adv, self.optimizer) as scaled_loss:
+                    with amp.scale_loss(loss_adv, self.optimizer) as scaled_loss:
                         scaled_loss.backward()
                 else:
                     loss_adv.backward()
