@@ -31,9 +31,11 @@ def train(logger):
             dev_dataset, _ = torch.utils.data.random_split(dev_dataset, [dev_size, len(dev_dataset) - dev_size])
 
     # define model and optimzier
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Bert(args.bert_name, train_dataset.num_class, args.bert_type)
+    model_bpp = Bert(args.bert_name, train_dataset.num_class, args.bert_type)
     pgd = PGD(model, args.epsilon, args.alpha)
-    bpp = BPP(model, args.beta, args.mu)
+    bpp = BPP(model_bpp, model.named_parameters(), args.beta, args.mu, device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     if args.distributed:
@@ -43,7 +45,6 @@ def train(logger):
         torch.distributed.init_process_group(backend="nccl")
         local_rank = torch.distributed.get_rank()
         torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
         logger.info('Lets use %d GPUs!' % torch.cuda.device_count())
         model.to(device)
         model = torch.nn.parallel.DistributedDataParallel(model,
@@ -53,7 +54,6 @@ def train(logger):
         train_dataloader, eval_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, sampler=DistributedSampler(train_dataset)), \
                                             DataLoader(dev_dataset, batch_size=args.batch_size, sampler=DistributedSampler(dev_dataset))
     else:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         model = model.to(device)
         train_dataloader, eval_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True), \
                                             DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=True)
