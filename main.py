@@ -34,9 +34,8 @@ def train(logger):
     # define model and optimzier
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Bert(args.bert_name, train_dataset.num_class, args.bert_type, drop_out=args.drop_out)
-    model_bpp = Bert(args.bert_name, train_dataset.num_class, args.bert_type, drop_out=args.drop_out)
     pgd = PGD(model, args.epsilon, args.alpha)
-    bpp = BPP(model_bpp, model.named_parameters(), args.beta, args.mu, device)
+    bpp = BPP(model, args.beta, args.mu)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     total_step = len(train_dataset) * args.num_epoch
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0,\
