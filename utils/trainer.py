@@ -50,7 +50,6 @@ class Trainer:
         losses, accs = [], []
         t0 = time.time()
         for step, batch in enumerate(self.train_data):
-            self.optimizer.zero_grad()
             input_ids, attention_mask, token_type_ids, labels = map(lambda i: i.to(self.device), batch)
 
             out = self.model(input_ids, attention_mask, token_type_ids)
