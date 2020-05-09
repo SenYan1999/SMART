@@ -42,7 +42,7 @@ class Trainer:
 
         return result
 
-    def train_epoch_smart(self, epoch):
+    def train_epoch_smart(self, epoch, print_interval):
         self.logger.info('Epoch: %2d: Training Model...' % epoch)
         pbar = tqdm(total = len(self.train_data))
         self.model.train()
@@ -50,7 +50,6 @@ class Trainer:
         losses, accs = [], []
         t0 = time.time()
         for step, batch in enumerate(self.train_data):
-            self.optimizer.zero_grad()
             input_ids, attention_mask, token_type_ids, labels = map(lambda i: i.to(self.device), batch)
 
             out = self.model(input_ids, attention_mask, token_type_ids)
@@ -99,7 +98,7 @@ class Trainer:
             t1 = time.time()
             pbar.set_description('Epoch: %2d | LOSS: %2.3f | %s: %1.3f' % (epoch, np.mean(losses), self.metrics[self.task], np.mean(accs)))
             pbar.update(1)
-            if step % 20 == 0 and step != 0:
+            if step % print_interval == 0 and step != 0:
                 total_time = (t1 - t0) / (step / len(self.train_data))
                 self.logger.info('Epoch: %2d | Step: [%4d / %4d] | Time: [%5.3f s / % 5.3f s] | LOSS: %2.3f | %s: %1.3f' % \
                                  (epoch, step, len(self.train_data), (t1 - t0), total_time, np.mean(losses), self.metrics[self.task], np.mean(accs)))
@@ -107,7 +106,7 @@ class Trainer:
         pbar.close()
         self.logger.info('Epoch: %2d | LOSS: %2.3f %s: %1.3f' % (epoch, np.mean(losses), self.metrics[self.task], np.mean(accs)))
 
-    def train_epoch_normal(self, epoch):
+    def train_epoch_normal(self, epoch, print_interval):
         self.logger.info('Epoch: %2d: Training Model...' % epoch)
         pbar = tqdm(total = len(self.train_data))
         self.model.train()
@@ -156,12 +155,12 @@ class Trainer:
 
         self.logger.info('Epoch: %2d | LOSS: %2.3f %s: %1.3f' % (epoch, np.mean(losses), self.metrics[self.task], np.mean(accs)))
 
-    def train(self, num_epoch, save_path):
+    def train(self, num_epoch, save_path, print_interval):
         for epoch in range(num_epoch):
             if self.normal:
-                self.train_epoch_normal(epoch)
+                self.train_epoch_normal(epoch, print_interval)
             else:
-                self.train_epoch_smart(epoch)
+                self.train_epoch_smart(epoch, print_interval)
             self.evaluate_epoch(epoch)
 
             # save state dict

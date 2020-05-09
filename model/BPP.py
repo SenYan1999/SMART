@@ -7,6 +7,8 @@ class BPP(object):
         self.beta = beta
         self.mu = mu
         self.theta_til = {}
+        for name, param in self.model.named_parameters():
+            self.theta_til[name] = param.data.clone().cuda()
 
     def theta_til_backup(self, named_parameters):
         for name, param in named_parameters:
@@ -19,7 +21,12 @@ class BPP(object):
         for name, param in self.model.named_parameters():
             param_bak[name] = param.data.clone()
             param.data = self.theta_til[name]
-        theta_til_prob = F.softmax(self.model(*batch), dim=-1)
+
+        with torch.no_grad():
+            theta_til_prob = F.softmax(self.model(*batch), dim=-1)
+
+        for name, param in self.model.named_parameters():
+            param.data = param_bak[name]
 
         for name, param in self.model.named_parameters():
             param.data = param_bak[name]
