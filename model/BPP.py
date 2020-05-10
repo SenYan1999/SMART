@@ -28,9 +28,6 @@ class BPP(object):
         for name, param in self.model.named_parameters():
             param.data = param_bak[name]
 
-        for name, param in self.model.named_parameters():
-            param.data = param_bak[name]
-
         bregman_divergence = F.kl_div(theta_prob.log(), theta_til_prob, reduction='batchmean') + \
             F.kl_div(theta_til_prob.log(), theta_prob, reduction='batchmean')
 

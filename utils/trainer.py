@@ -54,17 +54,17 @@ class Trainer:
 
             out = self.model(input_ids, attention_mask, token_type_ids)
             loss = F.cross_entropy(out, labels)
-
+            '''
             # Bregman Proximal Point Optimization
             bregman_div = self.bpp.mu * self.bpp.bregman_divergence((input_ids, attention_mask, token_type_ids), out)
-
             loss += bregman_div
+            '''
 
             if self.fp16:
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                    scaled_loss.backward(retain_graph=True)
             else:
-                loss.backward()
+                loss.backward(retain_graph=True)
 
             # PGD Adversarial Training
             self.pgd.grad_backup()
@@ -84,6 +84,10 @@ class Trainer:
                     loss_adv.backward()
 
             self.pgd.restore()
+
+            # Bregman Proximal Point Optimization
+            bregman_div = self.bpp.mu * self.bpp.bregman_divergence((input_ids, attention_mask, token_type_ids), out)
+            bregman_div.backward()
 
             self.optimizer.step()
             self.scheduler.step()

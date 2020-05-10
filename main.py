@@ -36,10 +36,6 @@ def train(logger):
     model = Bert(args.bert_name, train_dataset.num_class, args.bert_type, drop_out=args.drop_out)
     pgd = PGD(model, args.epsilon, args.alpha)
     bpp = BPP(model, args.beta, args.mu)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    total_step = len(train_dataset) * args.num_epoch
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0,\
-                                                num_training_steps=total_step)
 
     if args.distributed:
         from torch.utils.data.distributed import DistributedSampler
@@ -49,6 +45,7 @@ def train(logger):
         local_rank = torch.distributed.get_rank()
         torch.cuda.set_device(local_rank)
         logger.info('Lets use %d GPUs!' % torch.cuda.device_count())
+        device = torch.device('cuda', local_rank)
         model.to(device)
         model = torch.nn.parallel.DistributedDataParallel(model,
                                                           device_ids=[local_rank],
@@ -60,6 +57,11 @@ def train(logger):
         model = model.to(device)
         train_dataloader, eval_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True), \
                                             DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=True)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    total_step = len(train_dataset) * args.num_epoch
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0, \
+                                                num_training_steps=total_step)
 
     if args.fp16:
         model, optimizer = amp.initialize(model, optimizer, opt_level='O1')
